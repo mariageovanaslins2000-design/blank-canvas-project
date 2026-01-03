@@ -42,31 +42,29 @@ export default function ClientAppointments() {
     if (!user || !clinicId) return;
 
     try {
-      const { data: clientData, error: clientError } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("profile_id", user.id)
-        .eq("barbershop_id", clinicId)
-        .maybeSingle();
+      // Get client from cliente_empresa
+      const { data: clientLink } = await supabase
+        .from("cliente_empresa")
+        .select("cliente_id")
+        .eq("empresa_id", clinicId)
+        .single();
 
-      if (clientError) throw clientError;
-
-      if (!clientData) {
+      if (!clientLink) {
         setAppointments([]);
         setLoading(false);
         return;
       }
 
       const { data, error } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .select(`
           *,
-          barbers (name, specialty),
-          services (name, price, duration_minutes),
-          barbershops (name)
+          profissionais (nome, especialidade),
+          servicos (nome, preco, duracao_minutos),
+          empresas (nome)
         `)
-        .eq("client_id", clientData.id)
-        .order("appointment_date", { ascending: false });
+        .eq("cliente_id", clientLink.cliente_id)
+        .order("data_hora", { ascending: false });
 
       if (error) throw error;
       setAppointments(data || []);
@@ -81,7 +79,7 @@ export default function ClientAppointments() {
   const handleCancelAppointment = async (appointmentId: string) => {
     try {
       const { error } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .update({ status: "cancelled" })
         .eq("id", appointmentId);
 
@@ -98,13 +96,13 @@ export default function ClientAppointments() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; variant: any }> = {
-      pending: { label: "Pendente", variant: "outline" },
+      scheduled: { label: "Agendado", variant: "outline" },
       confirmed: { label: "Confirmado", variant: "default" },
       cancelled: { label: "Cancelado", variant: "destructive" },
       completed: { label: "Concluído", variant: "secondary" },
     };
 
-    const statusInfo = statusMap[status] || statusMap.pending;
+    const statusInfo = statusMap[status] || statusMap.scheduled;
 
     return (
       <Badge variant={statusInfo.variant}>
@@ -115,8 +113,8 @@ export default function ClientAppointments() {
 
   const canCancel = (appointment: any) => {
     return (
-      (appointment.status === "pending" || appointment.status === "confirmed") &&
-      !isPast(new Date(appointment.appointment_date))
+      (appointment.status === "scheduled" || appointment.status === "confirmed") &&
+      !isPast(new Date(appointment.data_hora))
     );
   };
 
@@ -155,8 +153,8 @@ export default function ClientAppointments() {
               <CardHeader className="p-4 pb-2">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-base font-medium">{appointment.services.name}</CardTitle>
-                    <CardDescription className="text-sm">{appointment.barbershops.name}</CardDescription>
+                    <CardTitle className="text-base font-medium">{appointment.servicos?.nome}</CardTitle>
+                    <CardDescription className="text-sm">{appointment.empresas?.nome}</CardDescription>
                   </div>
                   {getStatusBadge(appointment.status)}
                 </div>
@@ -166,12 +164,7 @@ export default function ClientAppointments() {
                   <div className="flex items-center gap-3 text-sm">
                     <div className="flex items-center gap-1">
                       <User className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm">{appointment.barbers.name}</span>
-                      {appointment.barbers.specialty && (
-                        <span className="text-xs text-muted-foreground">
-                          • {appointment.barbers.specialty}
-                        </span>
-                      )}
+                      <span className="text-sm">{appointment.profissionais?.nome}</span>
                     </div>
                   </div>
 
@@ -179,27 +172,20 @@ export default function ClientAppointments() {
                     <div className="flex items-center gap-1">
                       <Calendar className="h-3 w-3 text-muted-foreground" />
                       <span className="text-sm">
-                        {format(new Date(appointment.appointment_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        {format(new Date(appointment.data_hora), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm">{format(new Date(appointment.appointment_date), "HH:mm")}</span>
+                      <span className="text-sm">{format(new Date(appointment.data_hora), "HH:mm")}</span>
                     </div>
                   </div>
-
-                  {appointment.notes && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Observações: </span>
-                      <span>{appointment.notes}</span>
-                    </div>
-                  )}
 
                   <div className="flex items-center justify-between pt-2 border-t">
                     <div>
                       <span className="text-xs text-muted-foreground">Valor: </span>
                       <span className="font-semibold text-sm">
-                        R$ {Number(appointment.services.price).toFixed(2)}
+                        R$ {Number(appointment.servicos?.preco || 0).toFixed(2)}
                       </span>
                     </div>
 

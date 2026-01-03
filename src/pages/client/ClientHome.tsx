@@ -28,32 +28,30 @@ export default function ClientHome() {
     if (!user || !clinicId) return;
 
     try {
-      const { data: clientData, error: clientError } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("profile_id", user.id)
-        .eq("barbershop_id", clinicId)
-        .maybeSingle();
+      // Get client from cliente_empresa
+      const { data: clientLink } = await supabase
+        .from("cliente_empresa")
+        .select("cliente_id")
+        .eq("empresa_id", clinicId)
+        .single();
 
-      if (clientError) throw clientError;
-
-      if (!clientData) {
+      if (!clientLink) {
         setUpcomingAppointments([]);
         setLoading(false);
         return;
       }
 
       const { data, error } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .select(`
           *,
-          barbers (name),
-          services (name, price),
-          barbershops (name)
+          profissionais (nome),
+          servicos (nome, preco),
+          empresas (nome)
         `)
-        .eq("client_id", clientData.id)
-        .gte("appointment_date", new Date().toISOString())
-        .order("appointment_date", { ascending: true })
+        .eq("cliente_id", clientLink.cliente_id)
+        .gte("data_hora", new Date().toISOString())
+        .order("data_hora", { ascending: true })
         .limit(3);
 
       if (error) throw error;
@@ -165,28 +163,28 @@ export default function ClientHome() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="space-y-1">
-                      <h3 className="text-sm font-medium">{appointment.services.name}</h3>
+                      <h3 className="text-sm font-medium">{appointment.servicos?.nome}</h3>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          {appointment.barbers.name}
+                          {appointment.profissionais?.nome}
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {format(new Date(appointment.appointment_date), "dd 'de' MMMM", { locale: ptBR })}
+                          {format(new Date(appointment.data_hora), "dd 'de' MMMM", { locale: ptBR })}
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {format(new Date(appointment.appointment_date), "HH:mm")}
+                          {format(new Date(appointment.data_hora), "HH:mm")}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-sm">
-                        R$ {Number(appointment.services.price).toFixed(2)}
+                        R$ {Number(appointment.servicos?.preco || 0).toFixed(2)}
                       </p>
                       <p className="text-xs text-muted-foreground capitalize">
-                        {appointment.status === "pending" && "Pendente"}
+                        {appointment.status === "scheduled" && "Agendado"}
                         {appointment.status === "confirmed" && "Confirmado"}
                         {appointment.status === "cancelled" && "Cancelado"}
                         {appointment.status === "completed" && "Concluído"}

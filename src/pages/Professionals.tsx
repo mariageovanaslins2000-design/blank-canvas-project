@@ -27,7 +27,7 @@ const Professionals = () => {
     if (!professionalToDelete) return;
     setDeleting(true);
     try {
-      const { error } = await supabase.from("barbers").delete().eq("id", professionalToDelete.id);
+      const { error } = await supabase.from("profissionais").delete().eq("id", professionalToDelete.id);
       if (error) { 
         if (error.code === "23503") { 
           toast({ title: "Não é possível excluir", description: "Vinculado a agendamentos.", variant: "destructive" }); 
@@ -47,11 +47,36 @@ const Professionals = () => {
 
   const loadProfessionals = async () => {
     try {
-      const { data: clinic } = await supabase.from("barbershops").select("id").eq("owner_id", user?.id).single();
-      if (!clinic) return;
-      const { data, error } = await supabase.from("barbers").select("*").eq("barbershop_id", clinic.id).order("name");
+      const { data: roleData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user?.id)
+        .eq("role", "admin")
+        .single();
+        
+      if (!roleData?.empresa_id) return;
+      
+      const { data, error } = await supabase
+        .from("profissionais")
+        .select("*")
+        .eq("empresa_id", roleData.empresa_id)
+        .order("nome");
+        
       if (error) throw error;
-      setProfessionals(data || []);
+      
+      // Map to expected format
+      const mapped = (data || []).map(p => ({
+        id: p.id,
+        name: p.nome,
+        phone: p.telefone,
+        specialty: p.especialidade,
+        photo_url: p.avatar_url,
+        commission_percent: p.percentual_comissao,
+        is_active: p.ativo,
+        email: p.email
+      }));
+      
+      setProfessionals(mapped);
     } catch { } finally { setLoading(false); }
   };
 
@@ -106,7 +131,7 @@ const Professionals = () => {
                   <Avatar className="w-12 h-12 mx-auto sm:mx-0">
                     {p.photo_url && <AvatarImage src={p.photo_url} alt={p.name} />}
                     <AvatarFallback className="bg-secondary text-sm font-medium text-icon">
-                      {p.name.split(' ').map((n: string) => n[0]).join('')}
+                      {p.name?.split(' ').map((n: string) => n[0]).join('')}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 text-center sm:text-left min-w-0">

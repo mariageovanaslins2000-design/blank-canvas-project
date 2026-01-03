@@ -51,10 +51,10 @@ type Barber = {
 
 type BlockedDay = {
   id: string;
-  barber_id: string;
+  profissional_id: string;
   barber_name?: string;
-  blocked_date: string;
-  reason: string | null;
+  data: string;
+  motivo: string | null;
 };
 
 const Appointments = () => {
@@ -76,7 +76,7 @@ const Appointments = () => {
   const [blockReason, setBlockReason] = useState("");
   const [blocking, setBlocking] = useState(false);
   const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([]);
-  const [barbershopId, setBarbershopId] = useState<string | null>(null);
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
 
   const { plan, hasFeature, loading: subscriptionLoading } = useSubscription();
   const canBlockDays = hasFeature('day_blocking');
@@ -88,12 +88,12 @@ const Appointments = () => {
     try {
       // Primeiro deletar registros financeiros vinculados
       await supabase
-        .from("financial_records")
+        .from("registro_financeiros")
         .delete()
-        .eq("appointment_id", appointmentToDelete.id);
+        .eq("agendamento_id", appointmentToDelete.id);
 
       const { error } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .delete()
         .eq("id", appointmentToDelete.id);
 
@@ -127,38 +127,40 @@ const Appointments = () => {
     try {
       setLoading(true);
       
-      // Get barbershop
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
+      // Get empresa from funcao_usuario
+      const { data: roleData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
         .single();
 
-      if (!barbershop) return;
+      if (!roleData?.empresa_id) return;
       
-      setBarbershopId(barbershop.id);
+      setEmpresaId(roleData.empresa_id);
 
-      // Load barbers
-      const { data: barbersData } = await supabase
-        .from("barbers")
-        .select("id, name")
-        .eq("barbershop_id", barbershop.id)
-        .eq("is_active", true);
+      // Load profissionais
+      const { data: profissionaisData } = await supabase
+        .from("profissionais")
+        .select("id, nome")
+        .eq("empresa_id", roleData.empresa_id)
+        .eq("ativo", true);
 
-      setBarbers(barbersData || []);
+      const mappedBarbers = (profissionaisData || []).map(p => ({ id: p.id, name: p.nome }));
+      setBarbers(mappedBarbers);
 
       // Load blocked days for the selected date
       if (date) {
         const dateStr = format(date, "yyyy-MM-dd");
         const { data: blockedData } = await supabase
-          .from("blocked_days")
-          .select("id, barber_id, blocked_date, reason")
-          .eq("barbershop_id", barbershop.id)
-          .eq("blocked_date", dateStr);
+          .from("dias_bloqueados")
+          .select("id, profissional_id, data, motivo")
+          .eq("empresa_id", roleData.empresa_id)
+          .eq("data", dateStr);
 
         const blockedWithNames = (blockedData || []).map(b => ({
           ...b,
-          barber_name: barbersData?.find(barber => barber.id === b.barber_id)?.name || "Profissional"
+          barber_name: mappedBarbers.find(barber => barber.id === b.profissional_id)?.name || "Profissional"
         }));
         setBlockedDays(blockedWithNames);
       }
@@ -187,39 +189,39 @@ const Appointments = () => {
 
       // Fetch appointments from database
       const { data: appointmentsData, error } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .select(`
           id,
-          appointment_date,
+          data_hora,
           status,
-          client_name,
-          barbers (id, name),
-          clients (id, name),
-          services (name, duration_minutes, price)
+          notas,
+          profissionais (id, nome),
+          clientes (id, nome),
+          servicos (nome, duracao_minutos, preco)
         `)
-        .eq("barbershop_id", barbershop.id)
-        .gte("appointment_date", startTime)
-        .lte("appointment_date", endTime)
-        .order("appointment_date", { ascending: true });
+        .eq("empresa_id", roleData.empresa_id)
+        .gte("data_hora", startTime)
+        .lte("data_hora", endTime)
+        .order("data_hora", { ascending: true });
 
       if (error) throw error;
 
-      // Map to expected format - prioriza client_name do agendamento, fallback para clients.name
+      // Map to expected format
       const mappedAppointments: Appointment[] = (appointmentsData || []).map((apt: any) => ({
         id: apt.id,
-        appointment_date: apt.appointment_date,
+        appointment_date: apt.data_hora,
         status: apt.status,
         barber: {
-          id: apt.barbers.id,
-          name: apt.barbers.name
+          id: apt.profissionais?.id || "",
+          name: apt.profissionais?.nome || "N/A"
         },
         client: {
-          full_name: apt.client_name || apt.clients.name
+          full_name: apt.clientes?.nome || "N/A"
         },
         service: {
-          name: apt.services.name,
-          duration_minutes: apt.services.duration_minutes,
-          price: apt.services.price
+          name: apt.servicos?.nome || "N/A",
+          duration_minutes: apt.servicos?.duracao_minutos || 0,
+          price: apt.servicos?.preco || 0
         }
       }));
 
@@ -240,15 +242,15 @@ const Appointments = () => {
     try {
       // 1. Buscar dados do agendamento
       const { data: appointment, error: appointmentError } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .select(`
           id,
-          barbershop_id,
-          barber_id,
-          client_id,
-          appointment_date,
-          service_id,
-          services (price)
+          empresa_id,
+          profissional_id,
+          cliente_id,
+          data_hora,
+          servico_id,
+          servicos (preco)
         `)
         .eq("id", appointmentId)
         .single();
@@ -257,33 +259,32 @@ const Appointments = () => {
         throw new Error("Agendamento não encontrado");
       }
 
-      // 2. Buscar comissão do barbeiro
-      const { data: barber, error: barberError } = await supabase
-        .from("barbers")
-        .select("commission_percent")
-        .eq("id", appointment.barber_id)
+      // 2. Buscar comissão do profissional
+      const { data: profissional, error: profissionalError } = await supabase
+        .from("profissionais")
+        .select("percentual_comissao")
+        .eq("id", appointment.profissional_id)
         .single();
 
-      if (barberError || !barber) {
-        throw new Error("Barbeiro não encontrado");
+      if (profissionalError || !profissional) {
+        throw new Error("Profissional não encontrado");
       }
 
       // 3. Calcular valores financeiros
-      const valorTotal = (appointment.services as any)?.price || 0;
-      const comissaoPercent = barber.commission_percent || 50;
+      const valorTotal = (appointment.servicos as any)?.preco || 0;
+      const comissaoPercent = profissional.percentual_comissao || 50;
       const comissaoValor = (valorTotal * comissaoPercent) / 100;
-      const valorLiquidoBarbearia = valorTotal - comissaoValor;
+      const valorLiquidoEmpresa = valorTotal - comissaoValor;
 
       // 4. Criar registro financeiro
-      const { error: financialError } = await supabase.from("financial_records").insert({
-        barbershop_id: appointment.barbershop_id,
-        appointment_id: appointmentId,
-        barber_id: appointment.barber_id,
-        valor_total: valorTotal,
-        comissao_percent: comissaoPercent,
-        comissao_valor: comissaoValor,
-        valor_liquido_barbearia: valorLiquidoBarbearia,
-        status: "EFETIVADO"
+      const { error: financialError } = await supabase.from("registro_financeiros").insert({
+        empresa_id: appointment.empresa_id,
+        agendamento_id: appointmentId,
+        tipo: "receita",
+        valor: valorTotal,
+        descricao: "Agendamento confirmado",
+        categoria: "servico",
+        status: "paid"
       });
 
       if (financialError) {
@@ -291,21 +292,21 @@ const Appointments = () => {
         throw new Error("Erro ao criar registro financeiro");
       }
 
-      // 5. Atualizar dados do cliente (total_visits e last_appointment_at)
+      // 5. Atualizar dados do cliente (total_visitas e ultimo_agendamento)
       const { data: clientData } = await supabase
-        .from("clients")
-        .select("total_visits")
-        .eq("id", appointment.client_id)
+        .from("clientes")
+        .select("total_visitas")
+        .eq("id", appointment.cliente_id)
         .single();
 
       if (clientData) {
         const { error: clientUpdateError } = await supabase
-          .from("clients")
+          .from("clientes")
           .update({
-            total_visits: (clientData.total_visits || 0) + 1,
-            last_appointment_at: appointment.appointment_date
+            total_visitas: (clientData.total_visitas || 0) + 1,
+            ultimo_agendamento: appointment.data_hora
           })
-          .eq("id", appointment.client_id);
+          .eq("id", appointment.cliente_id);
 
         if (clientUpdateError) {
           console.error("Error updating client:", clientUpdateError);
@@ -314,7 +315,7 @@ const Appointments = () => {
 
       // 6. Atualizar status do agendamento
       const { error: updateError } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .update({ status: "confirmed" })
         .eq("id", appointmentId);
 
@@ -338,7 +339,7 @@ const Appointments = () => {
   };
 
   const getStatusBadge = (appointmentId: string, status: string) => {
-    if (status === "pending") {
+    if (status === "scheduled") {
       return (
         <Button
           size="sm"
@@ -371,7 +372,7 @@ const Appointments = () => {
   };
 
   const handleBlockDay = async () => {
-    if (!blockBarber || !date || !barbershopId) {
+    if (!blockBarber || !date || !empresaId) {
       toast({
         title: "Erro",
         description: "Selecione um profissional para bloquear",
@@ -382,12 +383,11 @@ const Appointments = () => {
 
     setBlocking(true);
     try {
-      const { error } = await supabase.from("blocked_days").insert({
-        barbershop_id: barbershopId,
-        barber_id: blockBarber,
-        blocked_date: format(date, "yyyy-MM-dd"),
-        reason: blockReason || null,
-        created_by: user?.id,
+      const { error } = await supabase.from("dias_bloqueados").insert({
+        empresa_id: empresaId,
+        profissional_id: blockBarber,
+        data: format(date, "yyyy-MM-dd"),
+        motivo: blockReason || null,
       });
 
       if (error) {
@@ -421,7 +421,7 @@ const Appointments = () => {
   const handleUnblockDay = async (blockedDayId: string) => {
     try {
       const { error } = await supabase
-        .from("blocked_days")
+        .from("dias_bloqueados")
         .delete()
         .eq("id", blockedDayId);
 
@@ -499,8 +499,8 @@ const Appointments = () => {
                   >
                     <div>
                       <span className="font-medium">{block.barber_name}</span>
-                      {block.reason && (
-                        <span className="text-muted-foreground"> - {block.reason}</span>
+                      {block.motivo && (
+                        <span className="text-muted-foreground"> - {block.motivo}</span>
                       )}
                     </div>
                     <Button

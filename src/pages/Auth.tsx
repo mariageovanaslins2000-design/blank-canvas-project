@@ -54,9 +54,7 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      const validationData = accountType === "owner" 
-        ? signUpData 
-        : { ...signUpData, clinicName: undefined };
+      const validationData = signUpData;
       
       signUpSchema.parse(validationData);
 

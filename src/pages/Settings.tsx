@@ -42,6 +42,7 @@ const Settings = () => {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const [upgradeFeature, setUpgradeFeature] = useState("");
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [clinic, setClinic] = useState({ 
     name: "", 
@@ -64,37 +65,51 @@ const Settings = () => {
   const loadClinic = async () => {
     if (!user) return;
     try {
-      const { data, error } = await supabase.from("barbershops").select("*").eq("owner_id", user.id).single();
+      // Get empresa from funcao_usuario
+      const { data: roleData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .single();
+
+      if (!roleData?.empresa_id) return;
+      setEmpresaId(roleData.empresa_id);
+
+      const { data, error } = await supabase
+        .from("empresas")
+        .select("*")
+        .eq("id", roleData.empresa_id)
+        .single();
+        
       if (error) throw error;
       if (data) setClinic({ 
-        name: data.name || "", 
-        phone: data.phone || "", 
-        address: data.address || "", 
+        name: data.nome || "", 
+        phone: data.telefone || "", 
+        address: data.endereco || "", 
         logo_url: data.logo_url || "",
-        primary_color: data.primary_color || "#D4AF37", 
-        secondary_color: data.secondary_color || "#1A1A1A",
-        opening_time: data.opening_time?.slice(0, 5) || "09:00",
-        closing_time: data.closing_time?.slice(0, 5) || "18:00",
-        working_days: data.working_days || [1, 2, 3, 4, 5, 6],
-        saturday_opening_time: data.saturday_opening_time?.slice(0, 5) || "",
-        saturday_closing_time: data.saturday_closing_time?.slice(0, 5) || ""
+        primary_color: data.cor_primaria || "#D4AF37", 
+        secondary_color: data.cor_secundaria || "#1A1A1A",
+        opening_time: data.horario_abertura?.slice(0, 5) || "09:00",
+        closing_time: data.horario_fechamento?.slice(0, 5) || "18:00",
+        working_days: data.dias_funcionamento || [1, 2, 3, 4, 5, 6],
+        saturday_opening_time: data.horario_abertura_sabado?.slice(0, 5) || "",
+        saturday_closing_time: data.horario_fechamento_sabado?.slice(0, 5) || ""
       });
     } catch { }
   };
 
   const uploadLogo = async (file: File) => {
-    if (!user) return null;
-    const { data: clinicData } = await supabase.from("barbershops").select("id").eq("owner_id", user.id).single();
-    if (!clinicData) return null;
+    if (!user || !empresaId) return null;
     
     try {
       if (clinic.logo_url) {
         const oldPath = clinic.logo_url.split("/").pop();
-        if (oldPath) await supabase.storage.from("logos").remove([`${clinicData.id}/${oldPath}`]);
+        if (oldPath) await supabase.storage.from("logos").remove([`${empresaId}/${oldPath}`]);
       }
       
       const fileExt = file.name.split(".").pop();
-      const fileName = `${clinicData.id}/main-logo-${Date.now()}.${fileExt}`;
+      const fileName = `${empresaId}/main-logo-${Date.now()}.${fileExt}`;
       const { error: uploadError } = await supabase.storage.from("logos").upload(fileName, file, { cacheControl: "3600", upsert: true });
       if (uploadError) throw uploadError;
       
@@ -121,22 +136,22 @@ const Settings = () => {
 
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !empresaId) return;
     setLoading(true);
     try {
-      const { error } = await supabase.from("barbershops").update({ 
-        name: clinic.name, 
-        phone: clinic.phone, 
-        address: clinic.address, 
+      const { error } = await supabase.from("empresas").update({ 
+        nome: clinic.name, 
+        telefone: clinic.phone, 
+        endereco: clinic.address, 
         logo_url: clinic.logo_url, 
-        primary_color: clinic.primary_color,
-        secondary_color: clinic.secondary_color,
-        opening_time: clinic.opening_time,
-        closing_time: clinic.closing_time,
-        working_days: clinic.working_days,
-        saturday_opening_time: clinic.saturday_opening_time || null,
-        saturday_closing_time: clinic.saturday_closing_time || null
-      }).eq("owner_id", user.id);
+        cor_primaria: clinic.primary_color,
+        cor_secundaria: clinic.secondary_color,
+        horario_abertura: clinic.opening_time,
+        horario_fechamento: clinic.closing_time,
+        dias_funcionamento: clinic.working_days,
+        horario_abertura_sabado: clinic.saturday_opening_time || null,
+        horario_fechamento_sabado: clinic.saturday_closing_time || null
+      }).eq("id", empresaId);
       if (error) throw error;
       toast.success("Configurações salvas!");
       setTimeout(() => window.location.reload(), 1000);

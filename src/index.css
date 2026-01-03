@@ -2,80 +2,177 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+/* Premium Minimalist Spa/Clinic Design System
+   Palette: Deep Green, Gray-Green, Soft Beige, Warm Sand, Soft Brown
+   All colors in HSL format.
+*/
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 220 20% 10%;
+    /* Fundo principal: Bege neutro suave #F4EDE4 */
+    --background: 34 36% 93%;
+    --foreground: 15 15% 25%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    /* Cards: Areia quente clara */
+    --card: 30 44% 95%;
+    --card-foreground: 15 15% 25%;
 
+    /* Popover */
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover-foreground: 15 15% 25%;
 
-    --primary: 220 90% 56%;
+    /* Primary: Verde profundo #5A6E5A */
+    --primary: 120 10% 39%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 20% 10%;
+    /* Secondary: Verde acinzentado claro #A8B2A1 */
+    --secondary: 93 10% 67%;
+    --secondary-foreground: 15 15% 25%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 50%;
+    /* Muted: Cinza esverdeado #DCE1D8 */
+    --muted: 93 14% 86%;
+    --muted-foreground: 15 15% 45%;
 
-    --accent: 220 14% 96%;
-    --accent-foreground: 220 20% 10%;
+    /* Accent: Verde suave #C8D4C5 */
+    --accent: 108 15% 81%;
+    --accent-foreground: 15 15% 25%;
 
+    /* Destructive */
     --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 220 90% 56%;
+    /* Bordas e inputs suaves */
+    --border: 93 14% 80%;
+    --input: 93 14% 85%;
+    --ring: 120 10% 39%;
 
+    /* Raio suave */
     --radius: 0.75rem;
 
-    --font-sans: 'Outfit', sans-serif;
+    /* Sidebar: Verde profundo */
+    --sidebar-background: 120 10% 39%;
+    --sidebar-foreground: 34 36% 93%;
+    --sidebar-primary: 30 44% 83%;
+    --sidebar-primary-foreground: 15 15% 25%;
+    --sidebar-accent: 120 10% 33%;
+    --sidebar-accent-foreground: 34 36% 93%;
+    --sidebar-border: 120 10% 33%;
+    --sidebar-ring: 30 44% 83%;
+
+    /* Gradientes e sombras premium */
+    --gradient-premium: linear-gradient(135deg, hsl(120 10% 39%), hsl(93 10% 67%));
+    --gradient-spa: linear-gradient(135deg, hsl(30 44% 83%), hsl(34 36% 93%));
+    --shadow-elegant: 0 4px 20px -4px hsl(15 15% 37% / 0.08);
+
+    /* Ícone cor: Marrom suave #6E5951 */
+    --icon: 15 15% 37%;
   }
 
   .dark {
-    --background: 220 20% 8%;
-    --foreground: 210 20% 98%;
+    /* Modo escuro harmonioso com tons terrosos */
+    --background: 15 10% 10%;
+    --foreground: 34 36% 90%;
 
-    --card: 220 20% 12%;
-    --card-foreground: 210 20% 98%;
+    --card: 15 10% 13%;
+    --card-foreground: 34 36% 90%;
 
-    --popover: 220 20% 12%;
-    --popover-foreground: 210 20% 98%;
+    --popover: 15 10% 12%;
+    --popover-foreground: 34 36% 90%;
 
-    --primary: 220 90% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 93 10% 67%;
+    --primary-foreground: 15 15% 15%;
 
-    --secondary: 220 20% 18%;
-    --secondary-foreground: 210 20% 98%;
+    --secondary: 120 10% 30%;
+    --secondary-foreground: 34 36% 90%;
 
-    --muted: 220 20% 18%;
-    --muted-foreground: 220 10% 60%;
+    --muted: 15 10% 18%;
+    --muted-foreground: 34 20% 60%;
 
-    --accent: 220 20% 18%;
-    --accent-foreground: 210 20% 98%;
+    --accent: 30 30% 25%;
+    --accent-foreground: 34 36% 90%;
 
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 220 20% 20%;
-    --input: 220 20% 20%;
-    --ring: 220 90% 60%;
+    --border: 15 10% 20%;
+    --input: 15 10% 20%;
+    --ring: 93 10% 67%;
+
+    --sidebar-background: 15 10% 8%;
+    --sidebar-foreground: 34 36% 90%;
+    --sidebar-primary: 93 10% 67%;
+    --sidebar-primary-foreground: 15 15% 15%;
+    --sidebar-accent: 15 10% 15%;
+    --sidebar-accent-foreground: 34 36% 90%;
+    --sidebar-border: 15 10% 15%;
+    --sidebar-ring: 93 10% 67%;
+
+    --icon: 30 44% 70%;
   }
 }
 
 @layer base {
   * {
     @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    touch-action: pan-y;
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    overscroll-behavior-x: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Tipografia consistente com DM Sans em todo o app */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans tracking-wide font-medium;
+  }
+
+  p {
+    @apply leading-relaxed;
+  }
+
+  /* Global mobile responsiveness */
+  img, video, iframe, canvas, svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Prevent zoom on input focus on iOS */
+  @media screen and (max-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 }

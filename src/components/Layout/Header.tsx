@@ -18,24 +18,34 @@ import { User, LogOut, Store, Scissors } from "lucide-react";
 
 export const Header = () => {
   const { user, hasRole, signOut } = useAuth();
-  const [barbershop, setBarbershop] = useState<{ name: string; logo_url: string } | null>(null);
+  const [empresa, setEmpresa] = useState<{ nome: string; logo_url: string | null } | null>(null);
 
   useEffect(() => {
-    const loadBarbershop = async () => {
+    const loadEmpresa = async () => {
       if (!user) return;
 
-      const { data } = await supabase
-        .from("barbershops")
-        .select("name, logo_url")
-        .eq("owner_id", user.id)
-        .single();
+      // Buscar empresa através da funcao_usuario
+      const { data: funcaoData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
 
-      if (data) {
-        setBarbershop(data);
+      if (funcaoData?.empresa_id) {
+        const { data } = await supabase
+          .from("empresas")
+          .select("nome, logo_url")
+          .eq("id", funcaoData.empresa_id)
+          .single();
+
+        if (data) {
+          setEmpresa(data);
+        }
       }
     };
 
-    loadBarbershop();
+    loadEmpresa();
   }, [user]);
   
   return (
@@ -43,14 +53,14 @@ export const Header = () => {
       <div className="flex items-center justify-between px-4 lg:px-8 py-4">
         {/* Logo and Name */}
         <div className="flex items-center gap-3">
-          {barbershop?.logo_url ? (
-            <img src={barbershop.logo_url} alt={barbershop.name} className="h-10 w-10 object-contain rounded-lg" />
+          {empresa?.logo_url ? (
+            <img src={empresa.logo_url} alt={empresa.nome} className="h-10 w-10 object-contain rounded-lg" />
           ) : (
             <div className="p-2 bg-primary rounded-full">
               <Scissors className="h-5 w-5 text-primary-foreground" />
             </div>
           )}
-          <span className="hidden lg:block text-lg font-bold">{barbershop?.name || "BarberShop Admin"}</span>
+          <span className="hidden lg:block text-lg font-bold">{empresa?.nome || "Clínica Admin"}</span>
         </div>
 
         {/* Search */}
@@ -87,7 +97,7 @@ export const Header = () => {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {(hasRole("owner") || hasRole("client")) && (
+              {(hasRole("admin") || hasRole("client")) && (
                 <DropdownMenuItem asChild>
                   <Link to="/client" className="cursor-pointer">
                     <Store className="mr-2 h-4 w-4" />

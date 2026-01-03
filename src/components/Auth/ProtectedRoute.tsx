@@ -3,7 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: "owner" | "client";
+  requiredRole?: "admin" | "client";
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
@@ -23,7 +23,7 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
 
   if (requiredRole && !hasRole(requiredRole)) {
     // Redirect to appropriate dashboard based on available roles
-    if (hasRole("owner")) {
+    if (hasRole("admin")) {
       return <Navigate to="/admin" replace />;
     } else if (hasRole("client")) {
       return <Navigate to="/client" replace />;

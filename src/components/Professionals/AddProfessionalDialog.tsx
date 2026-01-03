@@ -22,7 +22,7 @@ export function AddProfessionalDialog({ onProfessionalAdded, disabled, onDisable
   const [uploading, setUploading] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [formData, setFormData] = useState({ name: "", specialty: "", phone: "", commission_percent: "50" });
+  const [formData, setFormData] = useState({ nome: "", especialidade: "", telefone: "", percentual_comissao: "50" });
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -47,16 +47,32 @@ export function AddProfessionalDialog({ onProfessionalAdded, disabled, onDisable
     e.preventDefault();
     setLoading(true);
     try {
-      const { data: clinic } = await supabase.from("barbershops").select("id").eq("owner_id", user?.id).single();
-      if (!clinic) { toast.error("Clínica não encontrada"); return; }
-      const { error } = await supabase.from("barbers").insert({
-        barbershop_id: clinic.id, name: formData.name, specialty: formData.specialty || null,
-        phone: formData.phone || null, photo_url: photoUrl || null,
-        commission_percent: parseFloat(formData.commission_percent), is_active: true,
+      // Buscar empresa através da funcao_usuario
+      const { data: funcaoData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user?.id)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      if (!funcaoData?.empresa_id) { 
+        toast.error("Empresa não encontrada"); 
+        return; 
+      }
+      
+      const { error } = await supabase.from("profissionais").insert({
+        empresa_id: funcaoData.empresa_id, 
+        nome: formData.nome, 
+        especialidade: formData.especialidade || null,
+        telefone: formData.telefone || null, 
+        avatar_url: photoUrl || null,
+        percentual_comissao: parseFloat(formData.percentual_comissao), 
+        ativo: true,
       });
+      
       if (error) throw error;
       toast.success("Profissional adicionado!");
-      setFormData({ name: "", specialty: "", phone: "", commission_percent: "50" });
+      setFormData({ nome: "", especialidade: "", telefone: "", percentual_comissao: "50" });
       setPhotoUrl("");
       setOpen(false);
       onProfessionalAdded();
@@ -88,14 +104,33 @@ export function AddProfessionalDialog({ onProfessionalAdded, disabled, onDisable
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex flex-col items-center gap-4">
-            <Avatar className="w-24 h-24">{photoUrl && <AvatarImage src={photoUrl} />}<AvatarFallback className="bg-secondary text-2xl text-icon">{formData.name.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}</AvatarFallback></Avatar>
-            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}><Upload className="w-4 h-4 mr-2" />{uploading ? "Enviando..." : "Foto"}</Button>
+            <Avatar className="w-24 h-24">
+              {photoUrl && <AvatarImage src={photoUrl} />}
+              <AvatarFallback className="bg-secondary text-2xl text-icon">
+                {formData.nome.split(' ').map(n => n[0]).join('').toUpperCase() || '?'}
+              </AvatarFallback>
+            </Avatar>
+            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              <Upload className="w-4 h-4 mr-2" />{uploading ? "Enviando..." : "Foto"}
+            </Button>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
           </div>
-          <div className="space-y-2"><Label>Nome *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} required /></div>
-          <div className="space-y-2"><Label>Especialidade</Label><Input placeholder="Ex: Fisioterapia" value={formData.specialty} onChange={(e) => setFormData({ ...formData, specialty: e.target.value })} /></div>
-          <div className="space-y-2"><Label>Telefone</Label><Input placeholder="(11) 98765-4321" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} /></div>
-          <div className="space-y-2"><Label>Comissão (%)</Label><Input type="number" min="0" max="100" value={formData.commission_percent} onChange={(e) => setFormData({ ...formData, commission_percent: e.target.value })} /></div>
+          <div className="space-y-2">
+            <Label>Nome *</Label>
+            <Input value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} required />
+          </div>
+          <div className="space-y-2">
+            <Label>Especialidade</Label>
+            <Input placeholder="Ex: Fisioterapia" value={formData.especialidade} onChange={(e) => setFormData({ ...formData, especialidade: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Telefone</Label>
+            <Input placeholder="(11) 98765-4321" value={formData.telefone} onChange={(e) => setFormData({ ...formData, telefone: e.target.value })} />
+          </div>
+          <div className="space-y-2">
+            <Label>Comissão (%)</Label>
+            <Input type="number" min="0" max="100" value={formData.percentual_comissao} onChange={(e) => setFormData({ ...formData, percentual_comissao: e.target.value })} />
+          </div>
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1" disabled={loading}>Cancelar</Button>
             <Button type="submit" className="flex-1" disabled={loading}>{loading ? "Salvando..." : "Adicionar"}</Button>

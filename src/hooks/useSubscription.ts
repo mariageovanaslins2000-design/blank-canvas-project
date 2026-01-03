@@ -2,177 +2,118 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface SubscriptionPlan {
-  id: string;
-  name: string;
-  max_professionals: number | null;
-  max_clients: number | null;
-  max_portfolio_images: number | null;
-  has_custom_colors: boolean;
-  has_day_blocking: boolean;
-  has_date_filter: boolean;
-  has_whatsapp_integration: boolean;
-  has_advanced_reports: boolean;
-}
-
-interface Subscription {
-  id: string;
-  status: string;
-  plan_id: string;
-  trial_ends_at: string | null;
-  current_period_end: string | null;
-}
-
 interface Usage {
   professionals: number;
   clients: number;
   portfolioImages: number;
 }
 
+// Simplified subscription hook that works without subscription tables
 export function useSubscription() {
   const { user } = useAuth();
-  const [subscription, setSubscription] = useState<Subscription | null>(null);
-  const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
   const [usage, setUsage] = useState<Usage>({ professionals: 0, clients: 0, portfolioImages: 0 });
   const [loading, setLoading] = useState(true);
-  const [barbershopId, setBarbershopId] = useState<string | null>(null);
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
-      loadSubscriptionData();
+      loadData();
     }
   }, [user]);
 
-  const loadSubscriptionData = async () => {
+  const loadData = async () => {
     if (!user) return;
 
     try {
-      // Get barbershop
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
-        .single();
+      // Buscar empresa através da funcao_usuario
+      const { data: funcaoData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
 
-      if (!barbershop) {
+      if (!funcaoData?.empresa_id) {
         setLoading(false);
         return;
       }
 
-      setBarbershopId(barbershop.id);
-
-      // Get subscription
-      const { data: subscriptionData } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("barbershop_id", barbershop.id)
-        .in("status", ["active", "trialing"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (subscriptionData) {
-        setSubscription(subscriptionData);
-
-        // Get plan details
-        const { data: planData } = await supabase
-          .from("subscription_plans")
-          .select("*")
-          .eq("id", subscriptionData.plan_id)
-          .single();
-
-        if (planData) {
-          setPlan(planData as SubscriptionPlan);
-        }
-      }
+      setEmpresaId(funcaoData.empresa_id);
 
       // Get usage counts
-      const [professionalsResult, clientsResult, portfolioResult] = await Promise.all([
-        supabase.from("barbers").select("id", { count: "exact" }).eq("barbershop_id", barbershop.id).eq("is_active", true),
-        supabase.from("clients").select("id", { count: "exact" }).eq("barbershop_id", barbershop.id),
-        supabase.from("portfolio_images").select("id", { count: "exact" }).eq("barbershop_id", barbershop.id)
+      const [professionalsResult, portfolioResult] = await Promise.all([
+        supabase.from("profissionais").select("id", { count: "exact" }).eq("empresa_id", funcaoData.empresa_id).eq("ativo", true),
+        supabase.from("imagens_do_portfolio").select("id", { count: "exact" }).eq("empresa_id", funcaoData.empresa_id)
       ]);
+
+      // Get clients count through cliente_empresa
+      const { data: clientLinks } = await supabase
+        .from("cliente_empresa")
+        .select("cliente_id", { count: "exact" })
+        .eq("empresa_id", funcaoData.empresa_id);
 
       setUsage({
         professionals: professionalsResult.count || 0,
-        clients: clientsResult.count || 0,
+        clients: clientLinks?.length || 0,
         portfolioImages: portfolioResult.count || 0
       });
 
     } catch (error) {
-      console.error("Error loading subscription data:", error);
+      console.error("Error loading data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const isActive = (): boolean => {
-    if (!subscription) return false;
-    return subscription.status === "active" || subscription.status === "trialing";
+  // Default plan with unlimited features
+  const plan = {
+    name: "Premium",
+    max_professionals: null,
+    max_clients: null,
+    max_portfolio_images: null,
+    has_custom_colors: true,
+    has_day_blocking: true,
+    has_date_filter: true,
+    has_whatsapp_integration: true,
+    has_advanced_reports: true,
   };
 
-  const canAddProfessional = (): boolean => {
-    if (!plan || plan.max_professionals === null) return true;
-    return usage.professionals < plan.max_professionals;
-  };
+  const isActive = (): boolean => true;
 
-  const canAddClient = (): boolean => {
-    if (!plan || plan.max_clients === null) return true;
-    return usage.clients < plan.max_clients;
-  };
+  const canAddProfessional = (): boolean => true;
 
-  const canAddPortfolioImage = (): boolean => {
-    if (!plan) return false;
-    if (plan.max_portfolio_images === null) return true;
-    if (plan.max_portfolio_images === 0) return false;
-    return usage.portfolioImages < plan.max_portfolio_images;
-  };
+  const canAddClient = (): boolean => true;
 
-  const hasPortfolioAccess = (): boolean => {
-    if (!plan) return false;
-    return plan.max_portfolio_images !== 0;
-  };
+  const canAddPortfolioImage = (): boolean => true;
+
+  const hasPortfolioAccess = (): boolean => true;
 
   const hasFeature = (feature: 'custom_colors' | 'day_blocking' | 'date_filter' | 'whatsapp' | 'advanced_reports'): boolean => {
-    if (!plan) return false;
-    switch (feature) {
-      case 'custom_colors':
-        return plan.has_custom_colors;
-      case 'day_blocking':
-        return plan.has_day_blocking;
-      case 'date_filter':
-        return plan.has_date_filter;
-      case 'whatsapp':
-        return plan.has_whatsapp_integration;
-      case 'advanced_reports':
-        return plan.has_advanced_reports;
-      default:
-        return false;
-    }
+    return true;
   };
 
   const getProfessionalsLimit = (): { current: number; max: number | null } => {
-    return { current: usage.professionals, max: plan?.max_professionals ?? null };
+    return { current: usage.professionals, max: null };
   };
 
   const getClientsLimit = (): { current: number; max: number | null } => {
-    return { current: usage.clients, max: plan?.max_clients ?? null };
+    return { current: usage.clients, max: null };
   };
 
   const getPortfolioLimit = (): { current: number; max: number | null } => {
-    return { current: usage.portfolioImages, max: plan?.max_portfolio_images ?? null };
+    return { current: usage.portfolioImages, max: null };
   };
 
   const refreshUsage = () => {
-    loadSubscriptionData();
+    loadData();
   };
 
   return {
-    subscription,
+    subscription: null,
     plan,
     usage,
     loading,
-    barbershopId,
+    barbershopId: empresaId,
     isActive,
     canAddProfessional,
     canAddClient,

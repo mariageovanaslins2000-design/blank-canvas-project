@@ -2,28 +2,28 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface ClinicTheme {
-  name: string;
+  nome: string;
   logo_url: string;
-  primary_color: string;
-  secondary_color: string;
+  cor_primaria: string;
+  cor_secundaria: string;
 }
 
-export const useClinicTheme = (clinicId?: string) => {
+export const useClinicTheme = (empresaId?: string) => {
   const [theme, setTheme] = useState<ClinicTheme | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadTheme = async () => {
-      if (!clinicId) {
+      if (!empresaId) {
         setLoading(false);
         return;
       }
 
       try {
         const { data, error } = await supabase
-          .from("barbershops")
-          .select("name, logo_url, primary_color, secondary_color")
-          .eq("id", clinicId)
+          .from("empresas")
+          .select("nome, logo_url, cor_primaria, cor_secundaria")
+          .eq("id", empresaId)
           .single();
 
         if (error) throw error;
@@ -41,16 +41,16 @@ export const useClinicTheme = (clinicId?: string) => {
 
     loadTheme();
 
-    if (clinicId) {
+    if (empresaId) {
       const channel = supabase
-        .channel(`clinic-theme-${clinicId}`)
+        .channel(`empresa-theme-${empresaId}`)
         .on(
           'postgres_changes',
           {
             event: 'UPDATE',
             schema: 'public',
-            table: 'barbershops',
-            filter: `id=eq.${clinicId}`
+            table: 'empresas',
+            filter: `id=eq.${empresaId}`
           },
           (payload) => {
             const newData = payload.new as ClinicTheme;
@@ -64,20 +64,20 @@ export const useClinicTheme = (clinicId?: string) => {
         supabase.removeChannel(channel);
       };
     }
-  }, [clinicId]);
+  }, [empresaId]);
 
   const applyTheme = (themeData: ClinicTheme) => {
-    if (!themeData.primary_color && !themeData.secondary_color) return;
+    if (!themeData.cor_primaria && !themeData.cor_secundaria) return;
 
     const root = document.documentElement;
 
-    if (themeData.primary_color) {
-      const primaryHSL = hexToHSL(themeData.primary_color);
+    if (themeData.cor_primaria) {
+      const primaryHSL = hexToHSL(themeData.cor_primaria);
       root.style.setProperty("--primary", primaryHSL);
     }
 
-    if (themeData.secondary_color) {
-      const secondaryHSL = hexToHSL(themeData.secondary_color);
+    if (themeData.cor_secundaria) {
+      const secondaryHSL = hexToHSL(themeData.cor_secundaria);
       root.style.setProperty("--secondary", secondaryHSL);
     }
   };

@@ -25,10 +25,10 @@ export function AddServiceDialog({ onServiceAdded }: AddServiceDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    price: "",
-    duration_minutes: "",
+    nome: "",
+    descricao: "",
+    preco: "",
+    duracao_minutos: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,36 +36,37 @@ export function AddServiceDialog({ onServiceAdded }: AddServiceDialogProps) {
     setLoading(true);
 
     try {
-      // Get barbershop ID
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user?.id)
-        .single();
+      // Buscar empresa através da funcao_usuario
+      const { data: funcaoData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user?.id)
+        .eq("role", "admin")
+        .maybeSingle();
 
-      if (!barbershop) {
-        toast.error("Barbearia não encontrada");
+      if (!funcaoData?.empresa_id) {
+        toast.error("Empresa não encontrada");
         return;
       }
 
       // Insert service
-      const { error } = await supabase.from("services").insert({
-        barbershop_id: barbershop.id,
-        name: formData.name,
-        description: formData.description || null,
-        price: parseFloat(formData.price),
-        duration_minutes: parseInt(formData.duration_minutes),
-        is_active: true,
+      const { error } = await supabase.from("servicos").insert({
+        empresa_id: funcaoData.empresa_id,
+        nome: formData.nome,
+        descricao: formData.descricao || null,
+        preco: parseFloat(formData.preco),
+        duracao_minutos: parseInt(formData.duracao_minutos),
+        ativo: true,
       });
 
       if (error) throw error;
 
       toast.success("Serviço adicionado com sucesso!");
       setFormData({
-        name: "",
-        description: "",
-        price: "",
-        duration_minutes: "",
+        nome: "",
+        descricao: "",
+        preco: "",
+        duracao_minutos: "",
       });
       setOpen(false);
       onServiceAdded();
@@ -94,51 +95,51 @@ export function AddServiceDialog({ onServiceAdded }: AddServiceDialogProps) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Nome do Serviço *</Label>
+            <Label htmlFor="nome">Nome do Serviço *</Label>
             <Input
-              id="name"
+              id="nome"
               placeholder="Ex: Corte Masculino, Barba..."
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              value={formData.nome}
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Descrição</Label>
+            <Label htmlFor="descricao">Descrição</Label>
             <Textarea
-              id="description"
+              id="descricao"
               placeholder="Descreva o serviço..."
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              value={formData.descricao}
+              onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
               rows={3}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="price">Valor (R$) *</Label>
+              <Label htmlFor="preco">Valor (R$) *</Label>
               <Input
-                id="price"
+                id="preco"
                 type="number"
                 step="0.01"
                 min="0"
                 placeholder="50.00"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                value={formData.preco}
+                onChange={(e) => setFormData({ ...formData, preco: e.target.value })}
                 required
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="duration">Duração (min) *</Label>
+              <Label htmlFor="duracao">Duração (min) *</Label>
               <Input
-                id="duration"
+                id="duracao"
                 type="number"
                 min="1"
                 placeholder="30"
-                value={formData.duration_minutes}
-                onChange={(e) => setFormData({ ...formData, duration_minutes: e.target.value })}
+                value={formData.duracao_minutos}
+                onChange={(e) => setFormData({ ...formData, duracao_minutos: e.target.value })}
                 required
               />
             </div>

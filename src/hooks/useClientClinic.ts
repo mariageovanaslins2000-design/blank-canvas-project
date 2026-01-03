@@ -2,75 +2,101 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-interface ClinicData {
+interface EmpresaData {
   id: string;
-  name: string;
+  nome: string;
   logo_url: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
+  cor_primaria: string | null;
+  cor_secundaria: string | null;
 }
 
 export function useClientClinic() {
   const { user } = useAuth();
-  const [clinicId, setClinicId] = useState<string | null>(null);
-  const [clinic, setClinic] = useState<ClinicData | null>(null);
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
+  const [empresa, setEmpresa] = useState<EmpresaData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadClinic = async () => {
+    const loadEmpresa = async () => {
       if (!user) {
         setLoading(false);
         return;
       }
 
       try {
+        // Buscar vinculação cliente-empresa
         const { data: linkData, error: linkError } = await supabase
-          .from("client_barbershop")
-          .select("barbershop_id")
-          .eq("profile_id", user.id)
+          .from("cliente_empresa")
+          .select("empresa_id")
+          .eq("cliente_id", user.id)
           .maybeSingle();
 
         if (linkError) throw linkError;
         
         if (!linkData) {
-          setClinicId(null);
-          setClinic(null);
+          // Tenta buscar através do cliente com user_id
+          const { data: clienteData } = await supabase
+            .from("clientes")
+            .select("id")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (clienteData) {
+            const { data: linkData2 } = await supabase
+              .from("cliente_empresa")
+              .select("empresa_id")
+              .eq("cliente_id", clienteData.id)
+              .maybeSingle();
+
+            if (linkData2) {
+              setEmpresaId(linkData2.empresa_id);
+
+              const { data: empresaData } = await supabase
+                .from("empresas")
+                .select("id, nome, logo_url, cor_primaria, cor_secundaria")
+                .eq("id", linkData2.empresa_id)
+                .single();
+
+              if (empresaData) setEmpresa(empresaData);
+            }
+          }
+
           setLoading(false);
           return;
         }
 
-        setClinicId(linkData.barbershop_id);
+        setEmpresaId(linkData.empresa_id);
 
-        const { data: clinicData, error: clinicError } = await supabase
-          .from("barbershops")
-          .select("id, name, logo_url, primary_color, secondary_color")
-          .eq("id", linkData.barbershop_id)
+        const { data: empresaData, error: empresaError } = await supabase
+          .from("empresas")
+          .select("id, nome, logo_url, cor_primaria, cor_secundaria")
+          .eq("id", linkData.empresa_id)
           .single();
 
-        if (clinicError) throw clinicError;
-        setClinic(clinicData);
+        if (empresaError) throw empresaError;
+        setEmpresa(empresaData);
       } catch (error) {
-        console.error("Error loading clinic:", error);
+        console.error("Error loading empresa:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadClinic();
+    loadEmpresa();
 
     if (user) {
       const channel = supabase
-        .channel('clinic-theme-updates')
+        .channel('empresa-theme-updates')
         .on(
           'postgres_changes',
           {
             event: 'UPDATE',
             schema: 'public',
-            table: 'barbershops'
+            table: 'empresas'
           },
           (payload) => {
-            if (clinicId && payload.new.id === clinicId) {
-              setClinic(payload.new as ClinicData);
+            if (empresaId && payload.new.id === empresaId) {
+              setEmpresa(payload.new as EmpresaData);
             }
           }
         )
@@ -80,15 +106,17 @@ export function useClientClinic() {
         supabase.removeChannel(channel);
       };
     }
-  }, [user, clinicId]);
+  }, [user, empresaId]);
 
   return { 
-    clinicId, 
-    clinic, 
+    empresaId, 
+    empresa, 
     loading,
     // Backward compatibility aliases
-    barbershopId: clinicId, 
-    barbershop: clinic 
+    clinicId: empresaId,
+    clinic: empresa,
+    barbershopId: empresaId, 
+    barbershop: empresa 
   };
 }
 

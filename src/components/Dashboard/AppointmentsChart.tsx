@@ -21,8 +21,8 @@ type ChartDataPoint = {
   agendamentos: number;
 };
 
-type Professional = { id: string; name: string };
-type Service = { id: string; name: string };
+type Professional = { id: string; nome: string };
+type Service = { id: string; nome: string };
 
 export function AppointmentsChart({ clinicId }: AppointmentsChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
@@ -44,12 +44,12 @@ export function AppointmentsChart({ clinicId }: AppointmentsChartProps) {
   }, [clinicId, selectedProfessional, selectedService, selectedPeriod, customRange]);
 
   const loadFilters = async () => {
-    const [{ data: barbers }, { data: servicesData }] = await Promise.all([
-      supabase.from("barbers").select("id, name").eq("barbershop_id", clinicId).eq("is_active", true),
-      supabase.from("services").select("id, name").eq("barbershop_id", clinicId).eq("is_active", true)
+    const [{ data: profissionais }, { data: servicos }] = await Promise.all([
+      supabase.from("profissionais").select("id, nome").eq("empresa_id", clinicId).eq("ativo", true),
+      supabase.from("servicos").select("id, nome").eq("empresa_id", clinicId).eq("ativo", true)
     ]);
-    setProfessionals(barbers || []);
-    setServices(servicesData || []);
+    setProfessionals((profissionais || []) as Professional[]);
+    setServices((servicos || []) as Service[]);
   };
 
   const calculatePeriodDates = () => {
@@ -87,18 +87,18 @@ export function AppointmentsChart({ clinicId }: AppointmentsChartProps) {
       const periodDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
       let query = supabase
-        .from("appointments")
-        .select("id, appointment_date, barber_id, service_id")
-        .eq("barbershop_id", clinicId)
+        .from("agendamentos")
+        .select("id, data_hora, profissional_id, servico_id")
+        .eq("empresa_id", clinicId)
         .in("status", ["confirmed", "completed"])
-        .gte("appointment_date", startDate.toISOString())
-        .lte("appointment_date", endDate.toISOString());
+        .gte("data_hora", startDate.toISOString())
+        .lte("data_hora", endDate.toISOString());
 
       if (selectedProfessional !== "all") {
-        query = query.eq("barber_id", selectedProfessional);
+        query = query.eq("profissional_id", selectedProfessional);
       }
       if (selectedService !== "all") {
-        query = query.eq("service_id", selectedService);
+        query = query.eq("servico_id", selectedService);
       }
 
       const { data: appointments } = await query;
@@ -114,7 +114,7 @@ export function AppointmentsChart({ clinicId }: AppointmentsChartProps) {
 
       // Count appointments per day
       appointments?.forEach(apt => {
-        const dateKey = format(new Date(apt.appointment_date), "dd/MM", { locale: ptBR });
+        const dateKey = format(new Date(apt.data_hora), "dd/MM", { locale: ptBR });
         grouped[dateKey] = (grouped[dateKey] || 0) + 1;
       });
 
@@ -140,18 +140,18 @@ export function AppointmentsChart({ clinicId }: AppointmentsChartProps) {
     const previousEnd = subDays(currentStart, 1);
 
     let query = supabase
-      .from("appointments")
+      .from("agendamentos")
       .select("*", { count: "exact", head: true })
-      .eq("barbershop_id", clinicId)
+      .eq("empresa_id", clinicId)
       .in("status", ["confirmed", "completed"])
-      .gte("appointment_date", previousStart.toISOString())
-      .lte("appointment_date", previousEnd.toISOString());
+      .gte("data_hora", previousStart.toISOString())
+      .lte("data_hora", previousEnd.toISOString());
 
     if (selectedProfessional !== "all") {
-      query = query.eq("barber_id", selectedProfessional);
+      query = query.eq("profissional_id", selectedProfessional);
     }
     if (selectedService !== "all") {
-      query = query.eq("service_id", selectedService);
+      query = query.eq("servico_id", selectedService);
     }
 
     const { count: previousTotal } = await query;
@@ -233,7 +233,7 @@ export function AppointmentsChart({ clinicId }: AppointmentsChartProps) {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 {professionals.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -245,7 +245,7 @@ export function AppointmentsChart({ clinicId }: AppointmentsChartProps) {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 {services.map(s => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

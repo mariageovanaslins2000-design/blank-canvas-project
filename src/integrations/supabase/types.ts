@@ -134,6 +134,8 @@ export type Database = {
           nome: string
           notas: string | null
           telefone: string | null
+          total_visitas: number | null
+          ultimo_agendamento: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -146,6 +148,8 @@ export type Database = {
           nome: string
           notas?: string | null
           telefone?: string | null
+          total_visitas?: number | null
+          ultimo_agendamento?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -158,6 +162,8 @@ export type Database = {
           nome?: string
           notas?: string | null
           telefone?: string | null
+          total_visitas?: number | null
+          ultimo_agendamento?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -266,7 +272,9 @@ export type Database = {
           endereco: string | null
           estado: string | null
           horario_abertura: string | null
+          horario_abertura_sabado: string | null
           horario_fechamento: string | null
+          horario_fechamento_sabado: string | null
           id: string
           logo_url: string | null
           nome: string
@@ -286,7 +294,9 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           horario_abertura?: string | null
+          horario_abertura_sabado?: string | null
           horario_fechamento?: string | null
+          horario_fechamento_sabado?: string | null
           id?: string
           logo_url?: string | null
           nome: string
@@ -306,7 +316,9 @@ export type Database = {
           endereco?: string | null
           estado?: string | null
           horario_abertura?: string | null
+          horario_abertura_sabado?: string | null
           horario_fechamento?: string | null
+          horario_fechamento_sabado?: string | null
           id?: string
           logo_url?: string | null
           nome?: string
@@ -564,6 +576,7 @@ export type Database = {
           especialidade: string | null
           id: string
           nome: string
+          percentual_comissao: number | null
           telefone: string | null
           updated_at: string | null
           user_id: string | null
@@ -578,6 +591,7 @@ export type Database = {
           especialidade?: string | null
           id?: string
           nome: string
+          percentual_comissao?: number | null
           telefone?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -592,6 +606,7 @@ export type Database = {
           especialidade?: string | null
           id?: string
           nome?: string
+          percentual_comissao?: number | null
           telefone?: string | null
           updated_at?: string | null
           user_id?: string | null

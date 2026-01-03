@@ -23,15 +23,15 @@ export function EditProfessionalDialog({ professional, onProfessionalUpdated }: 
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [photoUrl, setPhotoUrl] = useState(professional.photo_url || "");
+  const [photoUrl, setPhotoUrl] = useState(professional.avatar_url || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
-    name: professional.name,
-    specialty: professional.specialty || "",
-    phone: professional.phone || "",
-    commission_percent: professional.commission_percent,
+    nome: professional.nome,
+    especialidade: professional.especialidade || "",
+    telefone: professional.telefone || "",
+    percentual_comissao: professional.percentual_comissao || 50,
   });
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,15 +41,15 @@ export function EditProfessionalDialog({ professional, onProfessionalUpdated }: 
     setUploading(true);
     try {
       // Delete old photo if exists
-      if (professional.photo_url) {
-        const oldPath = professional.photo_url.split('/').pop();
+      if (professional.avatar_url) {
+        const oldPath = professional.avatar_url.split('/').pop();
         await supabase.storage.from('professional-photos').remove([oldPath!]);
       }
 
       const fileExt = file.name.split('.').pop();
       const fileName = `${professional.id}-${Date.now()}.${fileExt}`;
       
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('professional-photos')
         .upload(fileName, file);
 
@@ -82,10 +82,13 @@ export function EditProfessionalDialog({ professional, onProfessionalUpdated }: 
 
     try {
       const { error } = await supabase
-        .from("barbers")
+        .from("profissionais")
         .update({
-          ...formData,
-          photo_url: photoUrl,
+          nome: formData.nome,
+          especialidade: formData.especialidade || null,
+          telefone: formData.telefone || null,
+          avatar_url: photoUrl || null,
+          percentual_comissao: formData.percentual_comissao,
         })
         .eq("id", professional.id);
 
@@ -126,7 +129,7 @@ export function EditProfessionalDialog({ professional, onProfessionalUpdated }: 
             <Avatar className="w-24 h-24">
               {photoUrl && <AvatarImage src={photoUrl} />}
               <AvatarFallback className="bg-secondary text-2xl text-icon">
-                {formData.name.split(' ').map(n => n[0]).join('')}
+                {formData.nome.split(' ').map((n: string) => n[0]).join('')}
               </AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
@@ -151,42 +154,42 @@ export function EditProfessionalDialog({ professional, onProfessionalUpdated }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="name">Nome</Label>
+            <Label htmlFor="nome">Nome</Label>
             <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              id="nome"
+              value={formData.nome}
+              onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="specialty">Especialidade</Label>
+            <Label htmlFor="especialidade">Especialidade</Label>
             <Input
-              id="specialty"
-              value={formData.specialty}
-              onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+              id="especialidade"
+              value={formData.especialidade}
+              onChange={(e) => setFormData({ ...formData, especialidade: e.target.value })}
               placeholder="Ex: Cortes clássicos, Barba"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefone</Label>
+            <Label htmlFor="telefone">Telefone</Label>
             <Input
-              id="phone"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              id="telefone"
+              value={formData.telefone}
+              onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
               placeholder="(00) 00000-0000"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="commission">Comissão (%)</Label>
+            <Label htmlFor="comissao">Comissão (%)</Label>
             <Input
-              id="commission"
+              id="comissao"
               type="number"
-              value={formData.commission_percent}
-              onChange={(e) => setFormData({ ...formData, commission_percent: parseFloat(e.target.value) })}
+              value={formData.percentual_comissao}
+              onChange={(e) => setFormData({ ...formData, percentual_comissao: parseFloat(e.target.value) })}
               min="0"
               max="100"
               required

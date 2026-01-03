@@ -8,36 +8,38 @@ import { toast } from "sonner";
 
 export function ClientLinkGenerator() {
   const { user } = useAuth();
-  const [barbershopId, setBarbershopId] = useState<string>("");
+  const [empresaId, setEmpresaId] = useState<string>("");
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadBarbershopId();
+    loadEmpresaId();
   }, [user]);
 
-  const loadBarbershopId = async () => {
+  const loadEmpresaId = async () => {
     if (!user) return;
 
     try {
+      // Buscar empresa através da funcao_usuario
       const { data } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
-        .single();
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
 
-      if (data) {
-        setBarbershopId(data.id);
+      if (data?.empresa_id) {
+        setEmpresaId(data.empresa_id);
       }
     } catch (error) {
-      console.error("Erro ao carregar ID da barbearia:", error);
+      console.error("Erro ao carregar ID da empresa:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const signupLink = barbershopId 
-    ? `${window.location.origin}/cadastro-cliente?idBarbearia=${barbershopId}`
+  const signupLink = empresaId 
+    ? `${window.location.origin}/cadastro-cliente?idEmpresa=${empresaId}`
     : "";
 
   const handleCopyLink = async () => {
@@ -117,7 +119,7 @@ export function ClientLinkGenerator() {
           </h4>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
             <li>O cliente clica no link e é direcionado para a página de cadastro</li>
-            <li>Após criar a conta, ele fica automaticamente vinculado à sua barbearia</li>
+            <li>Após criar a conta, ele fica automaticamente vinculado à sua clínica</li>
             <li>O cliente aparece na lista de clientes e pode fazer agendamentos</li>
             <li>Você pode enviar este link por WhatsApp, redes sociais ou email</li>
           </ul>

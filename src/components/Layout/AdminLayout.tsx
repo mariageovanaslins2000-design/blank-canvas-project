@@ -9,27 +9,29 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function AdminLayout() {
   const { user } = useAuth();
-  const [clinicId, setClinicId] = useState<string>();
+  const [empresaId, setEmpresaId] = useState<string>();
 
   useEffect(() => {
-    const loadClinic = async () => {
+    const loadEmpresa = async () => {
       if (!user) return;
 
+      // Buscar empresa através da funcao_usuario
       const { data } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
-        .single();
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
 
-      if (data) {
-        setClinicId(data.id);
+      if (data?.empresa_id) {
+        setEmpresaId(data.empresa_id);
       }
     };
 
-    loadClinic();
+    loadEmpresa();
   }, [user]);
 
-  useClinicTheme(clinicId);
+  useClinicTheme(empresaId);
 
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-background">

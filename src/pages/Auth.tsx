@@ -31,7 +31,7 @@ const signInSchema = z.object({
 export default function Auth() {
   const { signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const accountType = "owner"; // Fixed to owner only
+  const accountType = "admin"; // Fixed to admin only
 
   const [signUpData, setSignUpData] = useState({
     email: "",
@@ -65,8 +65,8 @@ export default function Auth() {
         signUpData.password,
         signUpData.fullName,
         signUpData.phone,
-        accountType,
-        accountType === "owner" ? signUpData.clinicName : undefined
+        "admin",
+        signUpData.clinicName
       );
     } catch (error: any) {
       if (error instanceof z.ZodError) {

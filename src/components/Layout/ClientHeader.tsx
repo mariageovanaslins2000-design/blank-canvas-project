@@ -17,7 +17,7 @@ import { ClientMobileMenu } from "./ClientMobileMenu";
 export function ClientHeader() {
   const { signOut, user } = useAuth();
   const location = useLocation();
-  const { clinic } = useClientClinic();
+  const { empresa } = useClientClinic();
 
   const navItems = [
     { path: "/client", label: "Início", icon: Home },
@@ -37,14 +37,14 @@ export function ClientHeader() {
           <ClientMobileMenu />
           
           <Link to="/client" className="flex items-center gap-2">
-            {clinic?.logo_url ? (
-              <img src={clinic.logo_url} alt={clinic.name} className="h-10 w-10 object-contain rounded-lg" />
+            {empresa?.logo_url ? (
+              <img src={empresa.logo_url} alt={empresa.nome} className="h-10 w-10 object-contain rounded-lg" />
             ) : (
               <div className="p-2 bg-primary rounded-full">
                 <Building2 className="h-5 w-5 text-primary-foreground" />
               </div>
             )}
-            <span className="text-lg md:text-xl font-bold">{clinic?.name || "Clínica"}</span>
+            <span className="text-lg md:text-xl font-bold">{empresa?.nome || "Clínica"}</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-6">

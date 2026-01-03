@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-type UserRole = "owner" | "client";
+type UserRole = "admin" | "professional" | "client";
 
 interface AuthContextType {
   user: User | null;
@@ -12,7 +12,7 @@ interface AuthContextType {
   roles: UserRole[];
   loading: boolean;
   hasRole: (role: UserRole) => boolean;
-  signUp: (email: string, password: string, fullName: string, phone: string, role: UserRole, barbershopName?: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, phone: string, role: "admin" | "client", empresaName?: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -31,15 +31,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Fetch user roles
+          // Fetch user roles - using setTimeout to avoid deadlock
           setTimeout(async () => {
             const { data: rolesData } = await supabase
-              .from("user_roles")
+              .from("funcao_usuario")
               .select("role")
               .eq("user_id", session.user.id);
             
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setTimeout(async () => {
           const { data: rolesData } = await supabase
-            .from("user_roles")
+            .from("funcao_usuario")
             .select("role")
             .eq("user_id", session.user.id);
           
@@ -79,8 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     fullName: string,
     phone: string,
-    role: UserRole,
-    barbershopName?: string
+    role: "admin" | "client",
+    empresaName?: string
   ) => {
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -89,20 +89,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
-            full_name: fullName,
+            name: fullName,
             phone,
             role,
-            barbershop_name: barbershopName,
+            empresa_name: empresaName,
           },
         },
       });
 
       if (error) throw error;
 
+      // O trigger handle_new_user já cria o perfil automaticamente
+      // Agora vamos criar a empresa e a role se for admin
+      if (data.user && role === "admin" && empresaName) {
+        // Criar empresa
+        const slug = empresaName
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
+
+        const { data: empresaData, error: empresaError } = await supabase
+          .from("empresas")
+          .insert({
+            nome: empresaName,
+            slug: `${slug}-${Date.now()}`,
+          })
+          .select()
+          .single();
+
+        if (empresaError) throw empresaError;
+
+        // Criar role de admin
+        const { error: roleError } = await supabase
+          .from("funcao_usuario")
+          .insert({
+            user_id: data.user.id,
+            role: "admin",
+            empresa_id: empresaData.id,
+          });
+
+        if (roleError) throw roleError;
+
+        // Vincular perfil à empresa
+        await supabase
+          .from("perfis")
+          .update({ empresa_id: empresaData.id })
+          .eq("id", data.user.id);
+      } else if (data.user && role === "client") {
+        // Criar role de cliente
+        const { error: roleError } = await supabase
+          .from("funcao_usuario")
+          .insert({
+            user_id: data.user.id,
+            role: "client",
+          });
+
+        if (roleError) throw roleError;
+      }
+
       toast.success("Conta criada com sucesso!");
       
       // Redirect based on role
-      if (role === "owner") {
+      if (role === "admin") {
         navigate("/admin");
       } else {
         navigate("/client");
@@ -129,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Fetch user roles to redirect appropriately
       const { data: rolesData } = await supabase
-        .from("user_roles")
+        .from("funcao_usuario")
         .select("role")
         .eq("user_id", data.user.id);
 
@@ -137,8 +187,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       toast.success("Login realizado com sucesso!");
 
-      // Redirect based on roles (priority: owner > client)
-      if (userRoles.includes("owner")) {
+      // Redirect based on roles (priority: admin > client)
+      if (userRoles.includes("admin")) {
         navigate("/admin");
       } else if (userRoles.includes("client")) {
         navigate("/client");
@@ -156,15 +206,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      const currentRoles = roles;
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
       toast.success("Logout realizado com sucesso!");
       
       // Redirect based on user role
-      if (hasRole("client")) {
+      if (currentRoles.includes("client")) {
         navigate("/login-cliente");
-      } else if (hasRole("owner")) {
+      } else if (currentRoles.includes("admin")) {
         navigate("/auth");
       } else {
         navigate("/");

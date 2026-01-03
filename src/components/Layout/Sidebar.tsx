@@ -29,28 +29,38 @@ const menuItems = [
 
 export const Sidebar = () => {
   const { user, signOut } = useAuth();
-  const [clinicName, setClinicName] = useState("Clínica");
+  const [empresaNome, setEmpresaNome] = useState("Clínica");
   const [sidebarLogo, setSidebarLogo] = useState<string | null>(null);
 
   useEffect(() => {
-    const loadClinic = async () => {
+    const loadEmpresa = async () => {
       if (!user) return;
       
-      const { data } = await supabase
-        .from("barbershops")
-        .select("name, logo_url")
-        .eq("owner_id", user.id)
-        .single();
+      // Buscar empresa através da funcao_usuario
+      const { data: funcaoData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
       
-      if (data) {
-        setClinicName(data.name);
-        if (data.logo_url) {
-          setSidebarLogo(data.logo_url);
+      if (funcaoData?.empresa_id) {
+        const { data } = await supabase
+          .from("empresas")
+          .select("nome, logo_url")
+          .eq("id", funcaoData.empresa_id)
+          .single();
+        
+        if (data) {
+          setEmpresaNome(data.nome);
+          if (data.logo_url) {
+            setSidebarLogo(data.logo_url);
+          }
         }
       }
     };
 
-    loadClinic();
+    loadEmpresa();
   }, [user]);
 
   return (
@@ -93,17 +103,17 @@ export const Sidebar = () => {
       <div className="p-4 border-t border-sidebar-border space-y-2">
         <div className="flex items-center gap-3 p-3 rounded-lg">
           {sidebarLogo ? (
-            <img src={sidebarLogo} alt={clinicName} className="w-10 h-10 rounded-full object-cover" />
+            <img src={sidebarLogo} alt={empresaNome} className="w-10 h-10 rounded-full object-cover" />
           ) : (
             <div className="w-10 h-10 rounded-full bg-sidebar-primary flex items-center justify-center">
               <span className="text-sm font-semibold text-sidebar-primary-foreground">
-                {clinicName.charAt(0).toUpperCase()}
+                {empresaNome.charAt(0).toUpperCase()}
               </span>
             </div>
           )}
           <div className="flex-1">
             <p className="text-sm font-medium text-sidebar-foreground truncate">
-              {clinicName}
+              {empresaNome}
             </p>
             <p className="text-xs text-sidebar-foreground/60">Admin</p>
           </div>

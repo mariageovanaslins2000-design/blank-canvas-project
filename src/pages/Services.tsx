@@ -31,7 +31,7 @@ const Services = () => {
     setDeleting(true);
     try {
       const { error } = await supabase
-        .from("services")
+        .from("servicos")
         .delete()
         .eq("id", serviceToDelete.id);
 
@@ -67,22 +67,34 @@ const Services = () => {
 
   const loadServices = async () => {
     try {
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user?.id)
+      const { data: roleData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user?.id)
+        .eq("role", "admin")
         .single();
 
-      if (!barbershop) return;
+      if (!roleData?.empresa_id) return;
 
       const { data, error } = await supabase
-        .from("services")
+        .from("servicos")
         .select("*")
-        .eq("barbershop_id", barbershop.id)
-        .order("name");
+        .eq("empresa_id", roleData.empresa_id)
+        .order("nome");
 
       if (error) throw error;
-      setServices(data || []);
+      
+      // Map to expected format
+      const mapped = (data || []).map(s => ({
+        id: s.id,
+        name: s.nome,
+        description: s.descricao,
+        price: s.preco,
+        duration_minutes: s.duracao_minutos,
+        is_active: s.ativo
+      }));
+      
+      setServices(mapped);
     } catch (error) {
       console.error("Error loading services:", error);
     } finally {

@@ -31,7 +31,7 @@ const Portfolio = () => {
   const [images, setImages] = useState<PortfolioImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [barbershopId, setBarbershopId] = useState<string>();
+  const [empresaId, setEmpresaId] = useState<string>();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -56,24 +56,35 @@ const Portfolio = () => {
     if (!user) return;
 
     try {
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
+      // Get empresa from funcao_usuario
+      const { data: roleData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
         .single();
 
-      if (!barbershop) return;
+      if (!roleData?.empresa_id) return;
       
-      setBarbershopId(barbershop.id);
+      setEmpresaId(roleData.empresa_id);
 
       const { data, error } = await supabase
-        .from("portfolio_images")
+        .from("imagens_do_portfolio")
         .select("*")
-        .eq("barbershop_id", barbershop.id)
-        .order("display_order");
+        .eq("empresa_id", roleData.empresa_id)
+        .order("ordem");
 
       if (error) throw error;
-      setImages(data || []);
+      
+      // Map to expected format
+      const mapped = (data || []).map(img => ({
+        id: img.id,
+        image_url: img.imagem_url,
+        title: img.titulo,
+        description: img.descricao
+      }));
+      
+      setImages(mapped);
     } catch (error) {
       console.error("Error loading portfolio:", error);
     } finally {
@@ -83,7 +94,7 @@ const Portfolio = () => {
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !barbershopId) return;
+    if (!file || !empresaId) return;
 
     if (!canAddPortfolioImage()) {
       setShowUpgradePrompt(true);
@@ -93,7 +104,7 @@ const Portfolio = () => {
     setUploading(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${barbershopId}-${Date.now()}.${fileExt}`;
+      const fileName = `${empresaId}-${Date.now()}.${fileExt}`;
       
       const { error: uploadError } = await supabase.storage
         .from('portfolio')
@@ -106,12 +117,12 @@ const Portfolio = () => {
         .getPublicUrl(fileName);
 
       const { error: insertError } = await supabase
-        .from("portfolio_images")
+        .from("imagens_do_portfolio")
         .insert({
-          barbershop_id: barbershopId,
-          image_url: publicUrl,
-          title: title || null,
-          description: description || null,
+          empresa_id: empresaId,
+          imagem_url: publicUrl,
+          titulo: title || null,
+          descricao: description || null,
         });
 
       if (insertError) throw insertError;
@@ -144,7 +155,7 @@ const Portfolio = () => {
       await supabase.storage.from('portfolio').remove([fileName!]);
       
       const { error } = await supabase
-        .from("portfolio_images")
+        .from("imagens_do_portfolio")
         .delete()
         .eq("id", image.id);
 

@@ -31,7 +31,7 @@ import { PlanLimitIndicator } from "@/components/Subscription/PlanLimitIndicator
 
 interface Client {
   id: string;
-  profile_id: string | null;
+  user_id: string | null;
   full_name: string;
   phone: string;
   total_appointments: number;
@@ -59,6 +59,7 @@ const Clients = () => {
   const [filterTab, setFilterTab] = useState("todos");
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [empresaId, setEmpresaId] = useState<string | null>(null);
 
   const { getClientsLimit, loading: subscriptionLoading } = useSubscription();
 
@@ -68,7 +69,7 @@ const Clients = () => {
     setDeleting(true);
     try {
       const { error } = await supabase
-        .from("clients")
+        .from("clientes")
         .delete()
         .eq("id", clientToDelete.id);
 
@@ -107,13 +108,13 @@ const Clients = () => {
     
     // Set up realtime subscription for clients changes
     const channel = supabase
-      .channel('clients-changes')
+      .channel('clientes-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'clients'
+          table: 'clientes'
         },
         () => {
           loadClients();
@@ -130,31 +131,47 @@ const Clients = () => {
     if (!user) return;
 
     try {
-      // Get barbershop
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
+      // Get empresa from funcao_usuario
+      const { data: roleData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
         .single();
 
-      if (!barbershop) return;
+      if (!roleData?.empresa_id) return;
+      setEmpresaId(roleData.empresa_id);
 
-      // Get clients from the new clients table
+      // Get clients from cliente_empresa relationship
+      const { data: clientLinks } = await supabase
+        .from("cliente_empresa")
+        .select("cliente_id")
+        .eq("empresa_id", roleData.empresa_id);
+
+      if (!clientLinks || clientLinks.length === 0) {
+        setClients([]);
+        setLoading(false);
+        return;
+      }
+
+      const clientIds = clientLinks.map(cl => cl.cliente_id);
+
+      // Get clients data
       const { data: clientsData } = await supabase
-        .from("clients")
+        .from("clientes")
         .select("*")
-        .eq("barbershop_id", barbershop.id)
-        .order("last_appointment_at", { ascending: false });
+        .in("id", clientIds)
+        .order("ultimo_agendamento", { ascending: false, nullsFirst: false });
 
       if (clientsData) {
         // Map to match the existing Client interface
         const mappedClients: Client[] = clientsData.map(c => ({
           id: c.id,
-          profile_id: c.profile_id,
-          full_name: c.name,
-          phone: c.phone || "Não informado",
-          total_appointments: c.total_visits,
-          last_appointment_date: c.last_appointment_at,
+          user_id: c.user_id,
+          full_name: c.nome,
+          phone: c.telefone || "Não informado",
+          total_appointments: c.total_visitas || 0,
+          last_appointment_date: c.ultimo_agendamento,
           last_service: null,
           created_at: c.created_at,
         }));
@@ -169,44 +186,32 @@ const Clients = () => {
   };
 
   const loadClientHistory = async (clientId: string) => {
-    if (!user) return;
+    if (!user || !empresaId) return;
 
     try {
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
-        .single();
-
-      if (!barbershop) return;
-
       const { data: appointments } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .select(`
           id,
-          appointment_date,
+          data_hora,
           status,
-          paid_amount,
-          services (
-            name
-          ),
-          barbers (
-            name
-          )
+          valor,
+          servicos (nome),
+          profissionais (nome)
         `)
-        .eq("barbershop_id", barbershop.id)
-        .eq("client_id", clientId)
-        .order("appointment_date", { ascending: false });
+        .eq("empresa_id", empresaId)
+        .eq("cliente_id", clientId)
+        .order("data_hora", { ascending: false });
 
       if (appointments) {
         setAppointmentHistory(
           appointments.map((apt: any) => ({
             id: apt.id,
-            appointment_date: apt.appointment_date,
-            service_name: apt.services?.name || "Não especificado",
-            barber_name: apt.barbers?.name || "Não especificado",
+            appointment_date: apt.data_hora,
+            service_name: apt.servicos?.nome || "Não especificado",
+            barber_name: apt.profissionais?.nome || "Não especificado",
             status: apt.status,
-            paid_amount: apt.paid_amount || 0,
+            paid_amount: apt.valor || 0,
           }))
         );
       }
@@ -217,7 +222,7 @@ const Clients = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "pending":
+      case "scheduled":
         return "bg-yellow-500/10 text-yellow-500";
       case "confirmed":
         return "bg-blue-500/10 text-blue-500";
@@ -232,8 +237,8 @@ const Clients = () => {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
-      case "pending":
-        return "Pendente";
+      case "scheduled":
+        return "Agendado";
       case "confirmed":
         return "Confirmado";
       case "completed":

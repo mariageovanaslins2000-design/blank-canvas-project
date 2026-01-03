@@ -62,9 +62,9 @@ export default function ClientLogin() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    const barbershopId = searchParams.get("idBarbearia");
-    if (barbershopId) {
-      loadBarbershopInfo(barbershopId);
+    const empresaId = searchParams.get("idBarbearia");
+    if (empresaId) {
+      loadEmpresaInfo(empresaId);
     }
   }, [searchParams]);
 
@@ -81,18 +81,22 @@ export default function ClientLogin() {
     };
   }, [primaryColor]);
 
-  const loadBarbershopInfo = async (id: string) => {
+  const loadEmpresaInfo = async (id: string) => {
     try {
       const { data, error } = await supabase
-        .rpc("get_barbershop_public_info", { barbershop_id: id });
+        .from("empresas")
+        .select("nome, logo_url, cor_primaria")
+        .eq("id", id)
+        .eq("ativo", true)
+        .single();
 
       if (error) throw error;
       
-      if (data && data.length > 0) {
-        setBarbershopName(data[0].name);
-        setBarbershopLogo(data[0].logo_url);
-        if (data[0].primary_color) {
-          setPrimaryColor(data[0].primary_color);
+      if (data) {
+        setBarbershopName(data.nome);
+        setBarbershopLogo(data.logo_url);
+        if (data.cor_primaria) {
+          setPrimaryColor(data.cor_primaria);
         }
       }
     } catch (error) {
@@ -117,7 +121,7 @@ export default function ClientLogin() {
 
       // Check if user has client role
       const { data: rolesData } = await supabase
-        .from("user_roles")
+        .from("funcao_usuario")
         .select("role")
         .eq("user_id", data.user.id);
 

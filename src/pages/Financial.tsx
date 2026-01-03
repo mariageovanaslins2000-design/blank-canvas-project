@@ -68,31 +68,29 @@ const Financial = () => {
     try {
       setLoading(true);
       
-      // Get barbershop
-      const { data: barbershop } = await supabase
-        .from("barbershops")
-        .select("id")
-        .eq("owner_id", user.id)
+      // Get empresa from funcao_usuario
+      const { data: roleData } = await supabase
+        .from("funcao_usuario")
+        .select("empresa_id")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
         .single();
 
-      if (!barbershop) return;
+      if (!roleData?.empresa_id) return;
 
       // Get all financial records with date filter
       let query = supabase
-        .from("financial_records")
+        .from("registro_financeiros")
         .select(`
           id,
-          appointment_id,
-          barber_id,
-          valor_total,
-          comissao_percent,
-          comissao_valor,
-          valor_liquido_barbearia,
+          agendamento_id,
+          valor,
           status,
-          created_at
+          created_at,
+          descricao
         `)
-        .eq("barbershop_id", barbershop.id)
-        .eq("status", "EFETIVADO");
+        .eq("empresa_id", roleData.empresa_id)
+        .eq("status", "paid");
 
       if (startDate) {
         const start = new Date(startDate);
@@ -109,66 +107,68 @@ const Financial = () => {
       const { data: financialRecords } = await query.order("created_at", { ascending: false });
 
       if (!financialRecords || financialRecords.length === 0) {
+        setBarberFinancials([]);
+        setTransactions([]);
+        setTotalRevenue(0);
+        setTotalCommissions(0);
+        setTotalProfit(0);
+        setTotalServices(0);
         setLoading(false);
         return;
       }
 
-      // Get barbers
-      const { data: barbers } = await supabase
-        .from("barbers")
-        .select("id, name, commission_percent")
-        .eq("barbershop_id", barbershop.id)
-        .eq("is_active", true);
+      // Get profissionais
+      const { data: profissionais } = await supabase
+        .from("profissionais")
+        .select("id, nome, percentual_comissao")
+        .eq("empresa_id", roleData.empresa_id)
+        .eq("ativo", true);
 
-      if (!barbers) return;
+      if (!profissionais) return;
 
       // Get appointment details for transactions
-      const appointmentIds = financialRecords.map(r => r.appointment_id);
+      const appointmentIds = financialRecords.map(r => r.agendamento_id).filter(Boolean);
       const { data: appointments } = await supabase
-        .from("appointments")
+        .from("agendamentos")
         .select(`
           id,
-          appointment_date,
-          client_id,
-          service_id
+          data_hora,
+          cliente_id,
+          servico_id,
+          profissional_id
         `)
         .in("id", appointmentIds);
 
       // Get clients and services for display
-      const clientIds = [...new Set(appointments?.map(a => a.client_id) || [])];
-      const serviceIds = [...new Set(appointments?.map(a => a.service_id) || [])];
+      const clientIds = [...new Set(appointments?.map(a => a.cliente_id) || [])];
+      const serviceIds = [...new Set(appointments?.map(a => a.servico_id) || [])];
 
-      const [{ data: profiles }, { data: services }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name").in("id", clientIds),
-        supabase.from("services").select("id, name").in("id", serviceIds),
+      const [{ data: clientes }, { data: servicos }] = await Promise.all([
+        supabase.from("clientes").select("id, nome").in("id", clientIds),
+        supabase.from("servicos").select("id, nome").in("id", serviceIds),
       ]);
 
-      // Calculate financial data for each barber
-      const barberFinancialsData: BarberFinancial[] = barbers.map((barber) => {
-        const barberRecords = financialRecords.filter(
-          (record) => record.barber_id === barber.id
+      // Calculate financial data for each profissional
+      const barberFinancialsData: BarberFinancial[] = profissionais.map((prof) => {
+        const profAppointments = appointments?.filter(a => a.profissional_id === prof.id) || [];
+        const profRecords = financialRecords.filter(r => 
+          profAppointments.some(a => a.id === r.agendamento_id)
         );
 
-        const totalRevenue = barberRecords.reduce(
-          (sum, record) => sum + Number(record.valor_total),
+        const totalRevenue = profRecords.reduce(
+          (sum, record) => sum + Number(record.valor),
           0
         );
 
-        const totalCommission = barberRecords.reduce(
-          (sum, record) => sum + Number(record.comissao_valor),
-          0
-        );
-
-        const barbershopProfit = barberRecords.reduce(
-          (sum, record) => sum + Number(record.valor_liquido_barbearia),
-          0
-        );
+        const commissionPercent = Number(prof.percentual_comissao) || 50;
+        const totalCommission = (totalRevenue * commissionPercent) / 100;
+        const barbershopProfit = totalRevenue - totalCommission;
 
         return {
-          id: barber.id,
-          name: barber.name,
-          commission_percent: Number(barber.commission_percent) || 0,
-          totalServices: barberRecords.length,
+          id: prof.id,
+          name: prof.nome,
+          commission_percent: commissionPercent,
+          totalServices: profRecords.length,
           totalRevenue,
           totalCommission,
           barbershopProfit,
@@ -190,43 +190,44 @@ const Financial = () => {
 
       // Format transactions (last 10)
       const transactionsData: Transaction[] = financialRecords.slice(0, 10).map((record) => {
-        const appointment = appointments?.find(a => a.id === record.appointment_id);
-        const client = profiles?.find(p => p.id === appointment?.client_id);
-        const service = services?.find(s => s.id === appointment?.service_id);
-        const barber = barbers.find(b => b.id === record.barber_id);
+        const appointment = appointments?.find(a => a.id === record.agendamento_id);
+        const client = clientes?.find(c => c.id === appointment?.cliente_id);
+        const service = servicos?.find(s => s.id === appointment?.servico_id);
+        const prof = profissionais.find(p => p.id === appointment?.profissional_id);
+
+        const commissionPercent = Number(prof?.percentual_comissao) || 50;
+        const valor = Number(record.valor);
 
         return {
           id: record.id,
-          date: appointment?.appointment_date || record.created_at,
-          client: client?.full_name || "N/A",
-          service: service?.name || "N/A",
-          barber: barber?.name || "N/A",
-          value: Number(record.valor_total),
-          commission: Number(record.comissao_valor),
+          date: appointment?.data_hora || record.created_at,
+          client: client?.nome || "N/A",
+          service: service?.nome || "N/A",
+          barber: prof?.nome || "N/A",
+          value: valor,
+          commission: (valor * commissionPercent) / 100,
         };
       });
 
       setTransactions(transactionsData);
 
-      // Calculate pending revenue (appointments not yet completed - only "pending" status)
+      // Calculate pending revenue (appointments not yet completed)
       const { data: pendingAppointments } = await supabase
-        .from("appointments")
-        .select(`
-          service_id
-        `)
-        .eq("barbershop_id", barbershop.id)
-        .eq("status", "pending");
+        .from("agendamentos")
+        .select(`servico_id`)
+        .eq("empresa_id", roleData.empresa_id)
+        .eq("status", "scheduled");
 
       if (pendingAppointments && pendingAppointments.length > 0) {
-        const pendingServiceIds = [...new Set(pendingAppointments.map(a => a.service_id))];
+        const pendingServiceIds = [...new Set(pendingAppointments.map(a => a.servico_id))];
         const { data: pendingServices } = await supabase
-          .from("services")
-          .select("id, price")
+          .from("servicos")
+          .select("id, preco")
           .in("id", pendingServiceIds);
 
         const pendingTotal = pendingAppointments.reduce((sum, apt) => {
-          const service = pendingServices?.find(s => s.id === apt.service_id);
-          return sum + (service?.price || 0);
+          const service = pendingServices?.find(s => s.id === apt.servico_id);
+          return sum + (Number(service?.preco) || 0);
         }, 0);
 
         setPendingRevenue(pendingTotal);
@@ -484,26 +485,18 @@ const Financial = () => {
                   {barberFinancials.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-xs text-muted-foreground">
-                        Nenhum dado encontrado
+                        Nenhum profissional com dados financeiros
                       </TableCell>
                     </TableRow>
                   ) : (
                     barberFinancials.map((barber) => (
                       <TableRow key={barber.id}>
-                        <TableCell className="font-medium">{barber.name}</TableCell>
-                        <TableCell className="text-center">{barber.totalServices}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          R$ {barber.totalRevenue.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {barber.commission_percent}%
-                        </TableCell>
-                        <TableCell className="text-right text-accent">
-                          R$ {barber.totalCommission.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-green-600">
-                          R$ {barber.barbershopProfit.toFixed(2)}
-                        </TableCell>
+                        <TableCell className="text-xs font-medium">{barber.name}</TableCell>
+                        <TableCell className="text-xs text-center">{barber.totalServices}</TableCell>
+                        <TableCell className="text-xs text-right">R$ {barber.totalRevenue.toFixed(2)}</TableCell>
+                        <TableCell className="text-xs text-center">{barber.commission_percent}%</TableCell>
+                        <TableCell className="text-xs text-right text-accent">R$ {barber.totalCommission.toFixed(2)}</TableCell>
+                        <TableCell className="text-xs text-right font-medium text-green-600">R$ {barber.barbershopProfit.toFixed(2)}</TableCell>
                       </TableRow>
                     ))
                   )}
